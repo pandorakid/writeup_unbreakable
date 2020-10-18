@@ -600,4 +600,87 @@ Rearrange flag and we get the solution.
 ctf{a818778ec7a9fc1988724ae3700b42e998eb09450eab7f1236e53bfdcd923878}
 
 
+# Unsolved challenges
 
+## We Are In Danger
+
+### What I solved
+
+This was the frist time I solved 
+
+```
+$ volatility --plugins=volatility-plugins/ -f e.bin --profile=Win7SP1x64 cmdscan
+Volatility Foundation Volatility Framework 2.6
+**************************************************
+CommandProcess: conhost.exe Pid: 3912
+CommandHistory: 0x24eb50 Application: cmd.exe Flags: Allocated, Reset
+CommandCount: 2 LastAdded: 1 LastDisplayed: 1
+FirstCommand: 0 CommandCountMax: 50
+ProcessHandle: 0x60
+Cmd #0 @ 0x24bbf0: the latest one is dmp 3402
+Cmd #1 @ 0x227860: echo 'the latest one is dmp 3402'
+Cmd #15 @ 0x210158: $
+```
+
+We seem to be on the look for a data dump. If we search for the string 3402 we get the following:
+
+```
+$ strings e.bin  | grep 3402
+[...]
+fire.dmp.3402
+[...]
+```
+
+Looking for files containing `3402` does not yield any results for files however looking for fire yields some results:
+
+```
+$ volatility --plugins=volatility-plugins/ -f e.bin --profile=Win7SP1x64 filescan | grep fire
+Volatility Foundation Volatility Framework 2.6
+0x000000007efa9f20      2      0 -W-rwd \Device\HarddiskVolume2\Users\wolf\Desktop\fire.dmp.zip
+0x000000007fa62a20     16      0 RW---- \Device\HarddiskVolume2\Users\wolf\Desktop\fire.dmp.zip
+0x000000007fdd7b40      2      0 RW-rwd \Device\HarddiskVolume2\Users\wolf\Downloads\fire.dmp.zip
+0x000000007fe92d00      2      0 RW-rw- \Device\HarddiskVolume2\Users\wolf\AppData\Roaming\Microsoft\Windows\Recent\fire.dmp (2).lnk
+```
+
+Extracting the files with the following commands yields 3 results however none of them seem relevant:
+```
+$ volatility --plugins=volatility-plugins/ -f e.bin --profile=Win7SP1x64 dumpfiles -Q 0x000000007efa9f20 --dump-dir=export
+Volatility Foundation Volatility Framework 2.6
+DataSectionObject 0x7efa9f20   None   \Device\HarddiskVolume2\Users\wolf\Desktop\fire.dmp.zip
+$ volatility --plugins=volatility-plugins/ -f e.bin --profile=Win7SP1x64 dumpfiles -Q 0x000000007fa62a20 --dump-dir=export
+Volatility Foundation Volatility Framework 2.6
+DataSectionObject 0x7fa62a20   None   \Device\HarddiskVolume2\Users\wolf\Desktop\fire.dmp.zip
+$ volatility --plugins=volatility-plugins/ -f e.bin --profile=Win7SP1x64 dumpfiles -Q 0x000000007fdd7b40 --dump-dir=export
+Volatility Foundation Volatility Framework 2.6
+DataSectionObject 0x7fdd7b40   None   \Device\HarddiskVolume2\Users\wolf\Downloads\fire.dmp.zip
+$ volatility --plugins=volatility-plugins/ -f e.bin --profile=Win7SP1x64 dumpfiles -Q 0x000000007fe92d00 --dump-dir=export
+Volatility Foundation Volatility Framework 2.6
+DataSectionObject 0x7fe92d00   None   \Device\HarddiskVolume2\Users\wolf\AppData\Roaming\Microsoft\Windows\Recent\fire.dmp (2).lnk
+```
+
+
+### What I did not solve
+
+Apparently volatility does some checks in the backround and only extracts files after those checks. Only 3 files were written from the previous commands. The only file which was not written was the good one. In order to make volatility extract the fiels without checks the `-u`flag needs to be specified.
+
+The commands which extracts the file is the following:
+
+```
+$ volatility --plugins=volatility-plugins/ -f e.bin --profile=Win7SP1x64 dumpfiles -u -Q 0x000000007fa62a20 --dump-dir=export
+Volatility Foundation Volatility Framework 2.6
+DataSectionObject 0x7fa62a20   None   \Device\HarddiskVolume2\Users\wolf\Desktop\fire.dmp.zip
+$ file export/file.None.0xfffffa8002889dc0.dat 
+export/file.None.0xfffffa8002889dc0.dat: Zip archive data, at least v2.0 to extract
+```
+
+We extract the archive and run the following command:
+
+```
+$ strings fire.dmp.3402 | grep flag
+passwordflagwin
+[...]
+```
+
+#### Flag
+
+ctf{9586b1bba71db9c301f354be9a84ddde3e1b35f6a933928f0aaf4f7e65d194cf}
