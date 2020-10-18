@@ -1,98 +1,3 @@
-## Better cat
-
-Classic basic task with plaintext string in memory.
-
-```
-$ strings cat.elf
-[...]
- ctf{a81H
-8778ec7aH
-9fc19887H
-24ae3700H
-b42e998eH
-b09450eaH
-b7f1236eH
-53bfdcd9H
-23878}
-[...]
-```
-
-Rearrange flag and we get the solution.
-
-#### Flag
-ctf{a818778ec7a9fc1988724ae3700b42e998eb09450eab7f1236e53bfdcd923878}
-
-
-## Alien console
-
-We play around with some payloads and analyze the output. Sending the same character 100 times results in an interesting output:
-
-```
-$ python -c 'print("c"*200)'  | nc 34.89.159.150 32653
-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-Welcome, enter text here and we will secure it: 0017051802020200535a5a0107505b055557005a515a54015a5a535601070202005b50515055560200025305515554525a0700535101540000510055525a5000020057071e0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-```
-
-Changing the character seems to control what repeated character we see at the end of the response so I assumed some sort of substitution is being used. We know the flag format only contains the characters `0-9a-ft` and `{}` but the curly braces can just be deduced from the position.
-
-We send another payload which contains the whole flag character set in order to find the substitutions for each character:
-
-```
-$ python -c 'print("c"*100 + "tfabdef0123456789")'  | nc 34.89.159.150 32653
-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccctfabdef0123456789
-Welcome, enter text here and we will secure it: 0017051802020200535a5a0107505b055557005a515a54015a5a535601070202005b50515055560200025305515554525a0700535101540000510055525a5000020057071e000000000000000000000000000000000000000000000000000000000000001705020107060553525150575655545b5a
-```
-
-By looking at the end of the response we see the string `001705020107060553525150575655545b5a` which corresponds to `ctfabdef0123456789`. We replace '00' -> 'c', '17' -> 't' etc. and we get the flag
-
-
-#### Flag
-ctf{aaac099bd38f64c9297b9905bdaac832365aca0f26719dc02b7cc2c6193cac4d}
-
-
-## Imagine that
-
-Connecting to the challenge gives the following output:
-
-```
-$ nc 35.242.239.180 30622
-Enter starting point: 0
-0
-Enter starting point: 0
-0
-Traceback (most recent call last):
-  File "server.py", line 12, in <module>
-    print(buf[:int(end):int(start)])
-ValueError: slice step cannot be zero
-```
-
-We try and feed the program even more wrong outputs in order to get more of the source code:
-```
-$ nc 35.242.239.180 30622
-Enter starting point: a
-a
-Enter starting point: a
-a
-Traceback (most recent call last):
-  File "server.py", line 9, in <module>
-    if (int(end) - int(start) > 10):
-ValueError: invalid literal for int() with base 10: 'a'
-```
-
-So the start variable is the step and the end variable is the end. Based on the errors we get we cand deduce the first number we send is the step and the second one is the end of the slice.
-We can bypass the check `int(end) - int(start) > 10` by sending a negative number for the `end` variable.  This way we can retrieve the whole buffer.
-
-By looking at the retrieved data we notice the 'PNG' string -> its an image!
-However trying to open the image results in an error. 
- * One of the errors is caused by how we retrieved it `buf[:-1:1]` sends the whole buffer, minus the last character. A quick look on [Wikipedia](https://en.wikipedia.org/wiki/Portable_Network_Graphics#Examples) tells us the last character needs to be `0x82` so we just append it.
- * The second error is more complicated so we use the tool `pngcheck -v image.png `. The output says `File is CORRUPTED.  It seems to have suffered Unix->DOS conversion.` and after a quick look on the internet we see it is somehow related to the end of line characters in Windows '\r\n'. On a quick inspection of the file we notice the file magic is `89 50 4E 47 0D 0D 0A 0D 1A 0D 0A` instead of `89 50 4E 47 0D 0A 1A 0A`. We just need to repalce all the `0D 0A` with `0A`. I used sublime to make this replacement but bless would have worked as well.
-
-It is a QR code and it decodes to `asdsdgbrtvt4f5678k7v21ecxdzu7ib6453b3i76m65n4bvcx`. We send this string as a password to the netcat applcation and we get the flag:
-
-#### Flag
-
-ctf{1e894e796b65e40d46863907eafc9acd96c9591839a98b3d0c248d0aa23aab22}
-
 ## Lost message
 
 We try and reverse functions one by one.
@@ -294,6 +199,112 @@ Disassembling the function is rather ugly so we fire up gdb with a breakpoint at
 
 #### Flag
 
+## zanger
+
+There were a total of 138 tcp packages, two of them having the destination port of 1337 and the rest of them a destination port between 0-7. A flag has a length of 69 characters so every two tcp packets could encode a flag chatacter. The fact that the 1337 destination ports were on the correct positions to represent the `{` and `}` chracters gave the hint that this is indeed the right way. The first destination ports were `6 3 7 4 6 6` -> `63 74 66` -> `ctf` so this is definitely the solution. I extracted the destionation ports using the command `tshark -Y "tcp" -T fields -e tcp.dstport -r copy.pcap  | tr -d '\n'` then I replaced the ports `7 1337` with a curly brace which left us with `637466{32663065353366616532353732633335386238326264646466366430326234613533313563633435336432643961316466373931346264666665366536316161}`. Decoding from hex gives us the flag.
+
+#### Flag
+
+ctf{2f0e53fae2572c358b82bdddf6d02b4a5315cc453d2d9a1df7914bdffe6e61aa}
+
+##
+
+## Alien console
+
+We play around with some payloads and analyze the output. Sending the same character 100 times results in an interesting output:
+
+```
+$ python -c 'print("c"*200)'  | nc 34.89.159.150 32653
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+Welcome, enter text here and we will secure it: 0017051802020200535a5a0107505b055557005a515a54015a5a535601070202005b50515055560200025305515554525a0700535101540000510055525a5000020057071e0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+```
+
+Changing the character seems to control what repeated character we see at the end of the response so I assumed some sort of substitution is being used. We know the flag format only contains the characters `0-9a-ft` and `{}` but the curly braces can just be deduced from the position.
+
+We send another payload which contains the whole flag character set in order to find the substitutions for each character:
+
+```
+$ python -c 'print("c"*100 + "tfabdef0123456789")'  | nc 34.89.159.150 32653
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccctfabdef0123456789
+Welcome, enter text here and we will secure it: 0017051802020200535a5a0107505b055557005a515a54015a5a535601070202005b50515055560200025305515554525a0700535101540000510055525a5000020057071e000000000000000000000000000000000000000000000000000000000000001705020107060553525150575655545b5a
+```
+
+By looking at the end of the response we see the string `001705020107060553525150575655545b5a` which corresponds to `ctfabdef0123456789`. We replace '00' -> 'c', '17' -> 't' etc. and we get the flag
+
+
+#### Flag
+ctf{aaac099bd38f64c9297b9905bdaac832365aca0f26719dc02b7cc2c6193cac4d}
+
+
+## Imagine that
+
+Connecting to the challenge gives the following output:
+
+```
+$ nc 35.242.239.180 30622
+Enter starting point: 0
+0
+Enter starting point: 0
+0
+Traceback (most recent call last):
+  File "server.py", line 12, in <module>
+    print(buf[:int(end):int(start)])
+ValueError: slice step cannot be zero
+```
+
+We try and feed the program even more wrong outputs in order to get more of the source code:
+```
+$ nc 35.242.239.180 30622
+Enter starting point: a
+a
+Enter starting point: a
+a
+Traceback (most recent call last):
+  File "server.py", line 9, in <module>
+    if (int(end) - int(start) > 10):
+ValueError: invalid literal for int() with base 10: 'a'
+```
+
+So the start variable is the step and the end variable is the end. Based on the errors we get we cand deduce the first number we send is the step and the second one is the end of the slice.
+We can bypass the check `int(end) - int(start) > 10` by sending a negative number for the `end` variable.  This way we can retrieve the whole buffer.
+
+By looking at the retrieved data we notice the 'PNG' string -> its an image!
+However trying to open the image results in an error. 
+ * One of the errors is caused by how we retrieved it `buf[:-1:1]` sends the whole buffer, minus the last character. A quick look on [Wikipedia](https://en.wikipedia.org/wiki/Portable_Network_Graphics#Examples) tells us the last character needs to be `0x82` so we just append it.
+ * The second error is more complicated so we use the tool `pngcheck -v image.png `. The output says `File is CORRUPTED.  It seems to have suffered Unix->DOS conversion.` and after a quick look on the internet we see it is somehow related to the end of line characters in Windows '\r\n'. On a quick inspection of the file we notice the file magic is `89 50 4E 47 0D 0D 0A 0D 1A 0D 0A` instead of `89 50 4E 47 0D 0A 1A 0A`. We just need to repalce all the `0D 0A` with `0A`. I used sublime to make this replacement but bless would have worked as well.
+
+It is a QR code and it decodes to `asdsdgbrtvt4f5678k7v21ecxdzu7ib6453b3i76m65n4bvcx`. We send this string as a password to the netcat applcation and we get the flag:
+
+#### Flag
+
+ctf{1e894e796b65e40d46863907eafc9acd96c9591839a98b3d0c248d0aa23aab22}
+
+
+
+
+## Better cat
+
+Classic basic task with plaintext string in memory.
+
+```
+$ strings cat.elf
+[...]
+ ctf{a81H
+8778ec7aH
+9fc19887H
+24ae3700H
+b42e998eH
+b09450eaH
+b7f1236eH
+53bfdcd9H
+23878}
+[...]
+```
+
+Rearrange flag and we get the solution.
+
+#### Flag
+ctf{a818778ec7a9fc1988724ae3700b42e998eb09450eab7f1236e53bfdcd923878}
 <details>
   <summary>Decode flag </summary>
 </details>
