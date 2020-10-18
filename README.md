@@ -1,3 +1,7 @@
+# Writeup Unbreakable 2020
+
+Challenge-uri solide, had plenty of fun.
+
 ## Lost message
 
 We try and reverse functions one by one.
@@ -107,7 +111,7 @@ ctf{cc3a329919391e291f0a41b7afd3877546f70813f0c06a8454912e0a92099369}
 
 ## Russian doll
 
-Another challenge that keeps popping up in CTFs, archives in archives. I personally dislike this challenge because it's not much you can learn from it. I've written this really ugly bash script to extract the flag:
+Another challenge that keeps popping up in CTFs, archives in archives. I personally dislike this type of challenge because it's not much you can learn from it. I've written this really ugly bash script to extract the flag. It mostly checks the file type, maybe runs john the ripper on the password and then extracts the file.
 
 ```
 ARCH=$1
