@@ -99,6 +99,8 @@ I used the tool [Sonic Visualizer](https://www.sonicvisualiser.org/) `right clic
 
 The code was `spectogram`.
 
+TODO - image
+
 #### Flag
 
 ctf{cc3a329919391e291f0a41b7afd3877546f70813f0c06a8454912e0a92099369}
@@ -273,7 +275,9 @@ However trying to open the image results in an error.
  * One of the errors is caused by how we retrieved it `buf[:-1:1]` sends the whole buffer, minus the last character. A quick look on [Wikipedia](https://en.wikipedia.org/wiki/Portable_Network_Graphics#Examples) tells us the last character needs to be `0x82` so we just append it.
  * The second error is more complicated so we use the tool `pngcheck -v image.png `. The output says `File is CORRUPTED.  It seems to have suffered Unix->DOS conversion.` and after a quick look on the internet we see it is somehow related to the end of line characters in Windows '\r\n'. On a quick inspection of the file we notice the file magic is `89 50 4E 47 0D 0D 0A 0D 1A 0D 0A` instead of `89 50 4E 47 0D 0A 1A 0A`. We just need to repalce all the `0D 0A` with `0A`. I used sublime to make this replacement but bless would have worked as well.
 
-It is a QR code and it decodes to `asdsdgbrtvt4f5678k7v21ecxdzu7ib6453b3i76m65n4bvcx`. We send this string as a password to the netcat applcation and we get the flag:
+It is a QR code and it decodes to `asdsdgbrtvt4f5678k7v21ecxdzu7ib6453b3i76m65n4bvcx`. We send this string as a password to the netcat applcation and we get the flag.
+
+TODO - qr
 
 #### Flag
 
