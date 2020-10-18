@@ -279,7 +279,26 @@ It is a QR code and it decodes to `asdsdgbrtvt4f5678k7v21ecxdzu7ib6453b3i76m65n4
 
 ctf{1e894e796b65e40d46863907eafc9acd96c9591839a98b3d0c248d0aa23aab22}
 
+## The code
 
+By studying the code we notice that a lot of chracters are forbidden by coditions `$`, `>`, `&`, `:` and the string `php`. On top of that `escapeshellcmd` will escape most of the characters like `?` and `*`. Since the command being ran is `find` we can try and exploit it by using `-exec`. However in order for any command
+to be executed we need to actually find a file with the find command. In order to bypass this restriction we use the `-o` flag. If no files are found the exec expression will be executed. As such the payload is:
+
+`?start=1&arg= -or -exec cat flag ;`
+
+Interestingly enough the payload works because the function `escapeshellcmd` escapes the `;` charater and makes the command valid. After running this we get the flag two times and in upper case. We remove the duplicate and proceed with rewriting the flag. I used [CyberChef](https://gchq.github.io/CyberChef/) yet again for this task, because selecting encoded characters highlights the corresponding decoded characters and vice-versa.
+
+NOTE: In base64 encoding every four b64 digits decode to three ascii digits. Knowing this we can split the flag in chunks of four and decode them individually.
+
+```
+Upper case b64 flag: Y3RME2FHZJE1Y2FJZMJHNJE1ZDUXMZCYMZG2OTA5YZQ3NZFMMDGZNJI4NGFKMWE1MZLIY2VMNDKYMDFJNJYWNJMXZWR9
+Lower case b64 flag: Y3Rme2FhZjE1Y2FjZmJhNjE1ZDUxMzcyMzg2OTA5YzQ3NzFmMDgzNjI4NGFkMWE1MzliY2VmNDkyMDFjNjYwNjMxZWR9
+
+```
+
+#### Flag
+
+ctf{aaf15cacfba615d51372386909c4771f0836284ad1a539bcef49201c660631ed}
 
 
 ## Better cat
